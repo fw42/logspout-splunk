@@ -64,12 +64,12 @@ func (splunk *SplunkAdapter) writeData(b []byte) error {
 		bytesWritten, err := splunk.connection.Write(b)
 		if err != nil {
 			// TODO: automatically reconnect
+			fmt.Printf("%s\n", err)
 			return err
 		}
 
+		fmt.Printf("Wrote %v...", string(b))
 		b = b[bytesWritten:]
-
-		fmt.Printf("Wrote %s...", string(b))
 
 		if len(b) == 0 {
 			break
@@ -81,7 +81,7 @@ func (splunk *SplunkAdapter) writeData(b []byte) error {
 
 func (splunk *SplunkAdapter) writer() {
 	for message := range splunk.queue {
-		splunk.writeData([]byte(message.Data))
+		splunk.writeData([]byte(message.Data + "\n"))
 	}
 }
 
