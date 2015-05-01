@@ -59,13 +59,38 @@ func (splunk *SplunkAdapter) connect() error {
 	return nil
 }
 
-func (splunk *SplunkAdapter) writeData(b []byte) error {
+func (splunk *SplunkAdapter) disconnect() error {
+	if splunk.connection == nil {
+		return nil
+	}
+
+	return splunk.connection.Close()
+}
+
+func (splunk *SplunkAdapter) reconnect() error {
+	splunk.disconnect()
+
+	var err error
+
+	for tries := 0; tries < 3; tries++ {
+		err = splunk.connect()
+
+		if err == nil {
+			return nil
+		}
+	}
+
+	return err
+}
+
+func (splunk *SplunkAdapter) writeData(b []byte) {
 	for {
 		bytesWritten, err := splunk.connection.Write(b)
 		if err != nil {
-			// TODO: automatically reconnect
-			fmt.Printf("%s\n", err)
-			return err
+			fmt.Printf("Failed to write to TCP connection: %s\n", err)
+			fmt.Printf("Reconnecting...\n")
+			err = splunk.reconnect()
+			break
 		}
 
 		fmt.Printf("Wrote %v...", string(b))
@@ -75,8 +100,6 @@ func (splunk *SplunkAdapter) writeData(b []byte) error {
 			break
 		}
 	}
-
-	return nil
 }
 
 func (splunk *SplunkAdapter) writer() {
