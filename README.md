@@ -16,8 +16,8 @@ sourcetype = my_source_type
 
 Run `./build.sh`:
 ```
-Sending build context to Docker daemon 90.11 kB
 Sending build context to Docker daemon
+...
 Step 0 : FROM gliderlabs/logspout:master
 ...
 Successfully built b356b141ddc2
