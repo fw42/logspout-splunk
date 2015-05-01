@@ -2,9 +2,9 @@ package splunk
 
 import (
 	"fmt"
-	"net"
-
 	"github.com/gliderlabs/logspout/router"
+	"net"
+	"time"
 )
 
 func init() {
@@ -16,6 +16,7 @@ type SplunkAdapter struct {
 	connection *net.TCPConn
 	queue      chan *router.Message
 	route      *router.Route
+	done       chan bool
 }
 
 func NewSplunkAdapter(route *router.Route) (router.LogAdapter, error) {
@@ -30,11 +31,13 @@ func NewSplunkAdapter(route *router.Route) (router.LogAdapter, error) {
 	}
 
 	queue := make(chan *router.Message, 1024)
+	done := make(chan bool, 1)
 
 	adapter := &SplunkAdapter{
 		address: address,
 		route:   route,
 		queue:   queue,
+		done:    done,
 	}
 
 	if err = adapter.connect(); err != nil {
@@ -56,6 +59,7 @@ func (splunk *SplunkAdapter) connect() error {
 	}
 
 	splunk.connection = connection
+
 	return nil
 }
 
@@ -67,30 +71,36 @@ func (splunk *SplunkAdapter) disconnect() error {
 	return splunk.connection.Close()
 }
 
-func (splunk *SplunkAdapter) reconnect() error {
+func (splunk *SplunkAdapter) reconnectLoop() {
 	splunk.disconnect()
 
 	var err error
 
-	for tries := 0; tries < 3; tries++ {
-		err = splunk.connect()
-
-		if err == nil {
-			return nil
+	for {
+		select {
+		case <-splunk.done:
+			break
+		default:
 		}
-	}
 
-	return err
+		err = splunk.connect()
+		if err == nil {
+			break
+		}
+
+		fmt.Printf("Splunk reconnect failed: %s\n", err)
+		time.Sleep(1 * time.Second)
+	}
 }
 
 func (splunk *SplunkAdapter) writeData(b []byte) {
 	for {
 		bytesWritten, err := splunk.connection.Write(b)
+
 		if err != nil {
 			fmt.Printf("Failed to write to TCP connection: %s\n", err)
-			fmt.Printf("Reconnecting...\n")
-			err = splunk.reconnect()
-			break
+			splunk.reconnectLoop()
+			return
 		}
 
 		fmt.Printf("Wrote %v...", string(b))
@@ -113,9 +123,16 @@ func (splunk *SplunkAdapter) Stream(logstream chan *router.Message) {
 		select {
 		case splunk.queue <- message:
 		default:
-			fmt.Printf("woot channel is full")
-			splunk.route.Close()
-			return
+			fmt.Printf("Channel is full! Dropping events :-(")
+			continue
 		}
 	}
+
+	splunk.Close()
+}
+
+func (splunk *SplunkAdapter) Close() {
+	close(splunk.queue)
+	splunk.disconnect()
+	splunk.done <- true
 }

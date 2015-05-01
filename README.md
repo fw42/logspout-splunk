@@ -1,6 +1,6 @@
 # logspout-splunk
 
-Simple logspout module to forward Docker logstreams to either a Splunk input.
+Simple logspout module to forward Docker logstreams to a Splunk TCP input.
 
 This is work in progress and not tested at scale. Use at own risk.
 
